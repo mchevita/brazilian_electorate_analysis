@@ -4,5 +4,5 @@
 .Ruserdata
 
 # Ignore all databases
-.zip
-.csv
+*.zip
+*.csv
