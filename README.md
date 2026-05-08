@@ -6,4 +6,4 @@ usei dados do Censo de 2010 (IBGE) e do Eleitorado de 2010 (TSE). As perguntas q
 * a proporção de eleitores por habitantes varia de acordo com o porte do município?
 
 **Disclaimer**: não sou estatístico. Então, caso você identificar algum equívoco na análise estatística, 
-por favor, me informe via "Pull request". Grato!
+por favor, me informe via "Issues". Grato!
