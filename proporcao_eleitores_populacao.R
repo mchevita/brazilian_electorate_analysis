@@ -84,8 +84,8 @@ dplyr::glimpse(pop_mun)
 
 ### Carga dos dados de eleitorado de 2010
 url_eleitorado_2010 = "https://cdn.tse.jus.br/estatistica/sead/odsele/perfil_eleitorado/perfil_eleitorado_2010.zip"
-downloader::download(url_eleitorado_2010, "arq_eleitorado_2010", mode = "wb")
-unzip("arq_eleitorado_2010")
+downloader::download(url_eleitorado_2010, "arq_eleitorado_2010.zip", mode = "wb")
+unzip("arq_eleitorado_2010.zip")
 eleit_br_inicial <- read.csv(
   "perfil_eleitorado_2010.csv",
   fileEncoding = "ISO-8859-1",
