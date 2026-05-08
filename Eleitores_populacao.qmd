@@ -1,24 +1,29 @@
-#==============================================================================
-#
-# Proporção de eleitores por habitantes nos municípios do Brasil
-# Análise Exploratória
-# Escopo: Brasil, 2010
-#
-# Autor: Marcus Vinicius Chevitarese Alves (mchevita@gmail.com)
-#
-#==============================================================================
+---
+title: "Proporção de eleitores por habitantes nos municípios do Brasil"
+author: "Marcus Chevitarese"
+format: html
+---
 
-#
 # 1. Preparação do ambiente
-#
 
-## Limpa memória
+## 1.1. Limpa memória
+
+```{r}
+#| echo: false
 rm(list=ls())
+```
 
-## Desabilita notação científica para valores numéricos
+## 1.2. Desabilita notação científica para valores numéricos
+
+```{r}
+#| echo: false
 options(scipen=999)
+```
 
-## Carrega bibliotecas necessárias
+## 1.3. Carrega bibliotecas necessárias
+
+```{r}
+#| echo: false
 library(censobr)
 library(geobr)
 library(tidyverse)
@@ -30,59 +35,70 @@ library(gdtools)
 library(car)
 library(report)
 library(emmeans)
+```
 
-#
 # 2. Carga e preparação dos dados
-#
 
-##
 ## 2.1. Dados de população
-##
-## Fonte: IBGE, via pacotes {censobr} e {geobr}
-##
+
+Fonte: IBGE, via pacotes {censobr} e {geobr}.
 
 ### Lê arquivo com dados "brutos" do IBGE usando o pacote {censobr}
+
+```{r}
 pop_br <- censobr::read_population(
   year = 2010,
   showProgress = FALSE
 )
 dplyr::glimpse(pop_br)
+```
 
 ### Gera um dataset com a população agrupada por sigla da UF e código do 
 ### município
+
+```{r}
 pop_mun <- pop_br |>
   compute() |>
   group_by(code_region, name_region, abbrev_state, code_muni) |>
   summarize(pop = sum(V0010) ) |> # V0010 = população
   collect()
 dplyr::glimpse(pop_mun)
+```
 
 ### Gera um dataset com o nome dos municípios a partir do arquivo 
-### georreferenciado do pacote {censobr}
+### georreferenciado do pacote {geobr}
+
+```{r}
 geo_mun <- geobr::read_municipality(
   year = 2010,
   showProgress = FALSE
 )
 dplyr::glimpse(geo_mun)
+```
 
 ### Cruza dados dos dois datasets para obter o nome do município
-### Obs.: bastaria fazer o cruzamento pela variável "code_muni";
-### no entanto, usei também "abrev_state" para evitar duplicidade
-### de variáveis.
+
+Obs.: bastaria fazer o cruzamento pela variável "code_muni";
+no entanto, usei também a variável "abrev_state" para evitar duplicidade
+de colunas no *dataframe* gerado.
+
+```{r}
 pop_mun <- left_join(
   pop_mun, geo_mun, 
   by = join_by(
     abbrev_state == abbrev_state,
     code_muni == code_muni))
 dplyr::glimpse(pop_mun)
+```
 
-##
 ## 2.2. Dados do eleitorado
-##
-## Fonte: TSE
-##
 
-### Carga dos dados de eleitorado de 2010
+Fonte: portal do TSE.
+
+### Carga dos dados "brutos" de eleitorado de 2010
+
+```{r}
+#| echo: false
 url_eleitorado_2010 = "https://cdn.tse.jus.br/estatistica/sead/odsele/perfil_eleitorado/perfil_eleitorado_2010.zip"
 downloader::download(url_eleitorado_2010, "arq_eleitorado_2010.zip", mode = "wb")
 unzip("arq_eleitorado_2010.zip")
@@ -90,8 +106,12 @@ eleit_br_inicial <- read.csv(
   "perfil_eleitorado_2010.csv",
   fileEncoding = "ISO-8859-1",
   sep = ";")
+```
 
-### Agrupa dados iniciais por município e normaliza nomes das variáveis
+### Agrupa dados "brutos" por município e normaliza nomes das variáveis
+
+```{r}
+#| echo: false
 eleit_br <- eleit_br_inicial |>
   select(ANO_ELEICAO, SG_UF, CD_MUNICIPIO, NM_MUNICIPIO, QT_ELEITORES_PERFIL) |>
   rename(
@@ -102,30 +122,41 @@ eleit_br <- eleit_br_inicial |>
   group_by(ano_eleicao, sg_uf, cd_municipio_tse, nm_municipio_tse) |>
   summarise(qt_eleitores_mun = sum(QT_ELEITORES_PERFIL))
 dplyr::glimpse(eleit_br)
+```
 
-#
 # 3. Análise dos dados
-#
 
-###
-### Preparação dos dados para análise
-###
+## 3.1. Preparação dos dados para análise
 
-#### Uniformiza dados: converte nomes dos municípios do dataset de população
-#### para letras maiúsculas
+### Uniformização dos dados
+
+Converte nomes dos municípios do dataset de população para letras maiúsculas.
+
+```{r}
+#| echo: false
 pop_mun <- pop_mun |>
   mutate(name_muni = toupper(name_muni))
+```
 
-#### Cruza dados de população com dados de municípios
+Cruza dados de população com dados de municípios
+
+```{r}
+#| echo: false
 pop_eleit_mun <- pop_mun |>
   inner_join(
     eleit_br, 
     by = join_by(
       abbrev_state == sg_uf,
       name_muni == nm_municipio_tse))
+```
 
-#### Verifica se todos os municípios do dataset de população
-#### tem correspondência no dataset de eleitores
+### Verificação de correspondência
+
+Verifica se todos os municípios do dataset de população tem correspondência no 
+dataset de eleitores
+
+```{r}
+#| echo: false
 compara_datasets <- function(df_pop, df_eleit,
                              uf_pop, uf_eleit,
                              mun_pop, mun_eleit) {
@@ -142,21 +173,32 @@ compara_datasets <- function(df_pop, df_eleit,
   }
   return(df_mun_nao_correspondentes)
 }
+```
 
+```{r}
 df_mun_nao_correspondentes <- compara_datasets(
   pop_mun, pop_eleit_mun,
   abbrev_state, abbrev_state,
   name_muni, name_muni)
 df_mun_nao_correspondentes[, c("abbrev_state", "name_muni")]
+```
 
-#### Faz a transliteração dos nomes dos municípios para o padrão Latin-ASCII
+### Faz a transliteração dos nomes dos municípios para o padrão Latin-ASCII
+
+```{r}
+#| echo: false
 pop_mun <- pop_mun |> 
   mutate(nm_mun_ibge_tran = stri_trans_general(name_muni, "Latin-ASCII"))
 eleit_br <- eleit_br |> 
   mutate(nm_mun_tse_tran = stri_trans_general(nm_municipio_tse, "Latin-ASCII"))
+```
 
-#### Cruza dados de população com dados de eleitorado
-#### após a transliteração dos nomes dos municípios
+### Cruza dados novamente após a transliteração dos nomes dos municípios
+
+Cruza dados de população com dados de eleitorado após a transliteração dos 
+nomes dos municípios.
+
+```{r}
 pop_eleit_mun <- pop_mun |>
   inner_join(
     eleit_br, 
@@ -168,12 +210,25 @@ df_mun_nao_correspondentes <- compara_datasets(
   abbrev_state, abbrev_state,
   nm_mun_ibge_tran, nm_mun_ibge_tran)
 df_mun_nao_correspondentes[, c("abbrev_state", "nm_mun_ibge_tran")]
+```
 
-#### Calcula proporção de eleitores da população
+### Calcula proporção de eleitores da população
+
+Divide a quantidade de eleitores pelo número de habitantes do município.
+
+```{r}
+#| echo: false
 pop_eleit_mun <- pop_eleit_mun |>
   mutate(pr_eleit = qt_eleitores_mun / pop)
+```
 
-#### Enriquecimento dos dados de municípios (população vs. eleitorado)
+### Enriquecimento dos dados de municípios
+
+Enriquecimento dos dados de municípios: cria faixas por porte de município
+seguindo a metodologia do IBGE.
+
+```{r}
+#| echo: false
 pop_eleit_mun <- pop_eleit_mun |>
   mutate(tp_porte_mun = case_when(
     pop <= 20000 ~ "Pequeno Porte I",
@@ -183,23 +238,32 @@ pop_eleit_mun <- pop_eleit_mun |>
   mutate(tp_porte_mun = fct_reorder(tp_porte_mun,
                                     pop,
                                     .fun = "length"))
+```
 
-##
 ## 3.2. Análise exploratória dos dados
-##
 
 ### Resumo dos dados
+
+```{r}
 summary(pop_eleit_mun$pr_eleit)
+```
 
 ### Configura tabelas
+
+```{r}
+#| echo: false
 set_flextable_defaults(
   font.size = 10,
   padding = 6)
+```
 
-### Estatísticas descritivas do número de municípios
-### por porte do município (tabela 1)
+### Tabela 1: estatísticas descritivas do número de municípios
+### por porte do município
 
 #### Constrói tabela 1
+
+```{r}
+#| echo: false
 tab_1 <- pop_eleit_mun |>
   group_by(tp_porte_mun) |>
   summarise(n_mun = as.numeric(n_distinct(code_muni)))
@@ -232,18 +296,31 @@ tab_1 <- tab_1 |>
 tab_1 <- delete_rows(tab_1, i = 1, part = "header")
 tab_1 <- delete_rows(tab_1, i = 2, part = "footer")
 tab_1 <- set_table_properties(tab_1, layout = "autofit")
+```
 
 #### Visualiza tabela 1
+
+```{r}
 tab_1
+```
 
 #### Exporta tabela 1 para formato PNG
+
+```{r}
+#| echo: false
 tf <- tempfile(fileext = ".png")
 save_as_image(x = tab_1, path = tf)
 file.copy(from = tf, to = "output/tab_1.png")
 init_flextable_defaults()
+```
 
-### Visualização da distribuição da proporção de eleitores
+### Figura 1: Visualização da distribuição da proporção de eleitores
 ### em relação ao número de habitantes
+
+#### Constrói figura 1
+
+```{r}
+#| echo: false
 fig_1 <- ggplot(pop_eleit_mun,
             aes(x = tp_porte_mun, y = pr_eleit, fill = tp_porte_mun)) +
   geom_violin() +
@@ -258,13 +335,28 @@ fig_1 <- ggplot(pop_eleit_mun,
         panel.grid.minor.x = element_blank(),
         panel.grid.major.y = element_line(colour = 'gray'),
         panel.grid.minor.y = element_line(colour = 'lightgray'))
-fig_1
-ggsave("output/fig_1.png", width = 20, height = 20, units = "cm")
+```
 
-### Constrói tabela com estatísticas descritivas da proporção de eleitores por 
+#### Exibe figura 1
+
+```{r}
+fig_1
+```
+
+#### Salva figura 1 em um arquivo
+
+```{r}
+#| echo: false
+ggsave("output/fig_1.png", width = 20, height = 20, units = "cm")
+```
+
+### Tabela 2: tabela com estatísticas descritivas da proporção de eleitores por 
 ### porte do município
 
-#### Constrói tabela
+#### Constrói tabela 2
+
+```{r}
+#| echo: false
 tab_2 <- pop_eleit_mun |>
   group_by(tp_porte_mun) |>
   summarise(
@@ -281,123 +373,128 @@ tab_2 <- set_header_labels(
 tab_2 <- delete_rows(tab_2, i = 1, part = "header")
 tab_2 <- delete_rows(tab_2, part = "footer")
 tab_2 <- set_table_properties(tab_2, layout = "autofit")
+```
 
 #### Visualiza tabela 2
-tab_2
 
-#### Exporta tabela 1 para formato PNG
+```{r}
+tab_2
+```
+
+#### Exporta tabela 2 para formato PNG
+
+```{r}
+#| echo: false
 tf <- tempfile(fileext = ".png")
 save_as_image(x = tab_2, path = tf)
 file.copy(from = tf, to = "output/tab_2.png")
 init_flextable_defaults()
+```
 
-##
 ## 3.3. Análise confirmatória
-##
 
-###
-### Visualmente, há uma diferença entre os grupos no que
-### se refere ao percentual de eleitores por habitante. Municípios de
-### menor porte tendem a ter um percentual maior. Mas será que essa
-### diferença é estatisticamente significativa? Para investigar essa hipótese, 
-### iremos usar um teste do tipo ANOVA one-way (ou seja, com apenas um fator
-### explicativo).
-###
-### No entanto, temos que tomar cuidado porque os grupos são **desbalanceados**,
-### isto é, possuem tamanhos diferentes. De fato, há muito mais municípios
-### de menor porte do que porte médio ou grande. Nesse caso, é necessário usar
-### um teste ANOVA específico, com a soma de quadrados tipo II ou III. 
-### Nesse trabalho, usaremos o tipo II (*).
-###
-### (*) Para entender mais sobre ANOVA e seus tipos específicos, consultar:
-### https://nathanieldphillips-yarrr.share.connect.posit.cloud/anova.html
-###
+Visualmente, há uma diferença entre os grupos no que se refere ao percentual de 
+eleitores por habitante. Municípios de menor porte tendem a ter um percentual 
+maior. Mas será que essa diferença é estatisticamente significativa? Para 
+investigar essa hipótese, iremos usar um teste do tipo ANOVA one-way (ou seja, 
+com apenas um fator explicativo).
+
+No entanto, temos que tomar cuidado porque os grupos são **desbalanceados**,
+isto é, possuem tamanhos diferentes. De fato, há muito mais municípios
+de menor porte do que porte médio ou grande. Nesse caso, é necessário usar
+um teste ANOVA específico, com a soma de quadrados tipo II ou III. 
+Nesse trabalho, usaremos o tipo II (*).
+
+(*) Para entender mais sobre ANOVA e seus tipos específicos, consultar: https://nathanieldphillips-yarrr.share.connect.posit.cloud/anova.html
+
+### Teste ANOVA
+
+```{r}
 porte_municipio_modelo <- lm(pr_eleit ~ tp_porte_mun, data = pop_eleit_mun) 
 porte_municipio_anova <- car::Anova(porte_municipio_modelo, type = 2)
 report(porte_municipio_anova)
+```
 
-### O teste sugere que existe um efeito da variável tipo de porte do município,
-### ou seja, existe uma variação significativa no valor do percentual de
-### eleitores por habitante de acordo com o tipo de município.
-### No entanto, o teste ANOVA, isoladamente, não aponta em qual dos grupos há a
-### diferença, apenas que existe uma diferença. Precisamos então de uma análise
-### à posteriori. No caso, vamos fazer uma comparação par a par, usando médias
-### marginais estimadas (EMMs) e valor-p ajustado pelo método de Tukey. Para
-### isso, vamos usar o pacote {emmeans}.
+O teste sugere que existe um efeito da variável tipo de porte do município,
+ou seja, existe uma variação significativa no valor do percentual de
+eleitores por habitante de acordo com o tipo de município.
+No entanto, o teste ANOVA, isoladamente, não aponta em qual dos grupos há a
+diferença, apenas que existe uma diferença. Precisamos então de uma análise
+à posteriori. No caso, vamos fazer uma comparação par a par, usando médias
+marginais estimadas (EMMs) e valor-p ajustado pelo método de Tukey. Para
+isso, vamos usar o pacote {emmeans}.
 
-#### Comparação par a par por porte de município
+### Comparação par a par da proporção de eleitores por habitante por porte do
+### município
+
+```{r}
 options(contrasts = c("contr.sum", "contr.poly"))
 porte_municipio_emms <- emmeans::emmeans(porte_municipio_modelo, 
                                    specs = pairwise ~ tp_porte_mun,
                                    type = "response")
 porte_municipio_emms$contrasts
+```
 
-#### Esse resultado pode ser visto também de forma compacta e matricial,
-#### por meio da função pwpm().
+### Comparação em formato matricial
+
+```{r}
 emmeans::pwpm(porte_municipio_emms)
+```
 
-### O teste indica que há uma diferença significativa entre todos os
-### pares de grupos, exceto entre municípios de médio e grande porte.
-### É possível visualizar essas diferenças por meio de um gráfico
-### com as médias marginais estimadas e seus respectivos intervalos de 
-### confiança.
-### *Precisamos usar médias marginais estimadas porque se trata de grupos
-### desbalanceados, conforme mencionado.
+O teste indica que há uma diferença significativa entre todos os pares de 
+grupos, exceto entre municípios de médio e grande porte.
+É possível visualizar essas diferenças por meio de um gráfico com as médias 
+marginais estimadas e seus respectivos intervalos de confiança.
+Precisamos usar médias marginais estimadas porque se trata de grupos
+desbalanceados, conforme mencionado.
 
-#### Visualização tabular das médias marginais estimadas e seus intervalos de 
-#### confiança
+### Visualização tabular das médias marginais estimadas
+
+Visualização tabular das médias marginais estimadas e seus intervalos de 
+confiança.
+
+```{r}
 porte_municipio_emms$emmeans
+```
 
-#### Visualização gráfica das médias marginais estimadas, intervalos de 
-#### confiança e comparação entre grupos
-####
-#### As barras azuis são os intervalos de confiança para as EMMs, e as setas
-#### vermelhas são para a comparação entre os grupos. Se uma seta de uma média
-#### se sobrepor a uma seta de outro grupo, a diferença não é "significativa",
-#### baseada nas configurações de ajuste (cujo padrão é "tukey") e o valor de
-#### alfa (cujo padrão é 0,05).
-#### Fonte: https://cran.r-project.org/web/packages/emmeans/vignettes/comparisons.html#pairwise
+### Figura 2: visualização gráfica das médias marginais estimadas
+
+Visualização gráfica das médias marginais estimadas, intervalos de 
+confiança e comparação entre grupos.
+
+As barras azuis são os intervalos de confiança para as EMMs, e as setas
+vermelhas são para a comparação entre os grupos. Se uma seta de uma média
+se sobrepor a uma seta de outro grupo, a diferença não é "significativa",
+baseada nas configurações de ajuste (cujo padrão é "tukey") e o valor de
+alfa (cujo padrão é 0,05).
+Fonte: https://cran.r-project.org/web/packages/emmeans/vignettes/comparisons.html#pairwise
+
+#### Constrói figura 2
+
+```{r}
 par(mar = c(5, 10, 4, 2) + 0.1) 
 plot(porte_municipio_emms, comparisons = TRUE,
      las=1, cex.axis = 0.7,
      xlab = "Média marginal estimada",
      ylab = "Porte do município")
+```
+
+#### Exporta figura 2 para formato PNG
+
+```{r}
 ggsave("output/fig_2.png", width = 20, height = 20, units = "cm")
+```
 
-### Podemos ver que as setas associadas às médias marginais estimadas
-### dos grupos Grande Porte e Médio Porte possuem uma sobreposição. Isso não 
-### ocorre na comparação entre os demais grupos. Podemos ver ainda que o grupo 
-### mais "separado" é o de menor porte (Pequeno Porte I), o que era esperado 
-### devido aos achados da análise exploratória.
+Podemos ver que as setas associadas às médias marginais estimadas
+dos grupos Grande Porte e Médio Porte possuem uma sobreposição. Isso não 
+ocorre na comparação entre os demais grupos. Podemos ver ainda que o grupo 
+mais "separado" é o de menor porte (Pequeno Porte I), o que era esperado 
+devido aos achados da análise exploratória.
 
-#### Outra visualização, com os p-valores comparativos:
-emmeans::pwpp(porte_municipio_emms,
-              xlab = "Valor-p ajustado pelo método de Tukey",
-              ylab = "Porte do município")
-ggsave("output/fig_3.png", width = 20, height = 20, units = "cm")
+## 3.4 Conclusão
 
-#### Curiosidade: o cálculo do contraste é feito simplesmente fazendo a
-#### a diferença entre as médias marginais estimadas. 
-#### Exemplos:
-
-##### Grande Porte x Médio Porte
-GP_MP_contraste <- 0.6833 - 0.6907
-GP_MP_contraste
-
-##### Grande Porte x Pequeno Porte I
-GP_PP1_contraste <- 0.6833 - 0.7911
-GP_PP1_contraste
-
-#### Se compararmos, esses são quase exatamente os valores mostrados na tabela
-#### de comparação par a par, que mostra os contrastes (existe uma pequena
-#### diferença por causa de arredondamento).
-
-###
-### **Conclusão**
-###
-### As evidências indicam diferenças significativas entre a proporção de
-### eleitores de todos os pares de grupos, exceto entre os municípios de 
-### médio e grande porte. Além disso, as maiores diferenças são entre os 
-### municípios do grupo de menor porte e os do grupo de maior porte. O teste 
-### considerou um nível de confiança de 95%.
-###
+As evidências indicam diferenças significativas entre a proporção de eleitores 
+de todos os pares de grupos, exceto entre os municípios de  médio e grande 
+porte. Além disso, as maiores diferenças são entre os municípios do grupo de 
+menor porte e os do grupo de maior porte. O teste considerou um nível de 
+confiança de 95%.
