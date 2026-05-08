@@ -9,7 +9,7 @@
 #==============================================================================
 
 #
-# Preparação do ambiente
+# 1. Preparação do ambiente
 #
 
 ## Limpa memória
@@ -32,66 +32,67 @@ library(report)
 library(emmeans)
 
 #
-# Dados de população
-#
-# Fonte: IBGE, via pacotes {censobr} e {geobr}
+# 2. Carga e preparação dos dados
 #
 
-## Carrega dados de população
+##
+## 2.1. Dados de população
+##
+## Fonte: IBGE, via pacotes {censobr} e {geobr}
+##
 
 ### Lê arquivo com dados "brutos" do IBGE usando o pacote {censobr}
-pop_br_inicial <- censobr::read_population(
+pop_br <- censobr::read_population(
   year = 2010,
   showProgress = FALSE
 )
-dplyr::glimpse(pop_br_inicial)
+dplyr::glimpse(pop_br)
 
 ### Gera um dataset com a população agrupada por sigla da UF e código do 
 ### município
-df_pop_mun <- pop_br_inicial |>
+pop_mun <- pop_br |>
   compute() |>
   group_by(code_region, name_region, abbrev_state, code_muni) |>
   summarize(pop = sum(V0010) ) |> # V0010 = população
   collect()
-dplyr::glimpse(df_pop_mun)
+dplyr::glimpse(pop_mun)
 
 ### Gera um dataset com o nome dos municípios a partir do arquivo 
 ### georreferenciado do pacote {censobr}
-df_mun_geo <- geobr::read_municipality(
+geo_mun <- geobr::read_municipality(
   year = 2010,
   showProgress = FALSE
 )
-dplyr::glimpse(df_mun_geo)
+dplyr::glimpse(geo_mun)
 
 ### Cruza dados dos dois datasets para obter o nome do município
 ### Obs.: bastaria fazer o cruzamento pela variável "code_muni";
 ### no entanto, usei também "abrev_state" para evitar duplicidade
 ### de variáveis.
-df_pop_mun <- left_join(
-  df_pop_mun, df_mun_geo, 
+pop_mun <- left_join(
+  pop_mun, geo_mun, 
   by = join_by(
     abbrev_state == abbrev_state,
     code_muni == code_muni))
-dplyr::glimpse(df_pop_mun)
+dplyr::glimpse(pop_mun)
 
-#
-# Dados do eleitorado
-#
-# Fonte: TSE
-#
+##
+## 2.1. Dados do eleitorado
+##
+## Fonte: TSE
+##
 
-## Carga dos dados de eleitorado de 2010
+### Carga dos dados de eleitorado de 2010
 url_eleitorado_2010 = "https://cdn.tse.jus.br/estatistica/sead/odsele/perfil_eleitorado/perfil_eleitorado_2010.zip"
 downloader::download(url_eleitorado_2010, "arq_eleitorado_2010", mode = "wb")
 unzip("arq_eleitorado_2010")
-df_eleit_br_inicial <- read.csv(
+eleit_br_inicial <- read.csv(
   "perfil_eleitorado_2010.csv",
   fileEncoding = "ISO-8859-1",
   sep = ";")
 
-## Agrupa dados iniciais por município
-## (também normaliza nomes das variáveis)
-df_eleit_br <- df_eleit_br_inicial |>
+### Agrupa dados iniciais por município e normaliza nomes das variáveis
+eleit_br <- eleit_br_inicial |>
   select(ANO_ELEICAO, SG_UF, CD_MUNICIPIO, NM_MUNICIPIO, QT_ELEITORES_PERFIL) |>
   rename(
     ano_eleicao = ANO_ELEICAO,
@@ -100,31 +101,31 @@ df_eleit_br <- df_eleit_br_inicial |>
     nm_municipio_tse = NM_MUNICIPIO) |>
   group_by(ano_eleicao, sg_uf, cd_municipio_tse, nm_municipio_tse) |>
   summarise(qt_eleitores_mun = sum(QT_ELEITORES_PERFIL))
-dplyr::glimpse(df_eleit_br)
+dplyr::glimpse(eleit_br)
 
 #
-# Análise dos dados
+# 3. Análise dos dados
 #
 
-##
-## Preparação dos dados para análise
-##
+###
+### Preparação dos dados para análise
+###
 
-### Uniformiza dados: converte nomes dos municípios do dataset de população
-### para letras maiúsculas
-df_pop_mun <- df_pop_mun |>
+#### Uniformiza dados: converte nomes dos municípios do dataset de população
+#### para letras maiúsculas
+pop_mun <- pop_mun |>
   mutate(name_muni = toupper(name_muni))
 
-### Cruza dados de população com dados de municípios
-df_pop_eleit_mun <- df_pop_mun |>
+#### Cruza dados de população com dados de municípios
+pop_eleit_mun <- pop_mun |>
   inner_join(
-    df_eleit_br, 
+    eleit_br, 
     by = join_by(
       abbrev_state == sg_uf,
       name_muni == nm_municipio_tse))
 
-### Verifica se todos os municípios do dataset de população
-### tem correspondência no dataset de eleitores
+#### Verifica se todos os municípios do dataset de população
+#### tem correspondência no dataset de eleitores
 compara_datasets <- function(df_pop, df_eleit,
                              uf_pop, uf_eleit,
                              mun_pop, mun_eleit) {
@@ -143,37 +144,37 @@ compara_datasets <- function(df_pop, df_eleit,
 }
 
 df_mun_nao_correspondentes <- compara_datasets(
-  df_pop_mun, df_pop_eleit_mun,
+  pop_mun, pop_eleit_mun,
   abbrev_state, abbrev_state,
   name_muni, name_muni)
 df_mun_nao_correspondentes[, c("abbrev_state", "name_muni")]
 
-### Faz a transliteração dos nomes dos municípios para o padrão Latin-ASCII
-df_pop_mun <- df_pop_mun |> 
+#### Faz a transliteração dos nomes dos municípios para o padrão Latin-ASCII
+pop_mun <- pop_mun |> 
   mutate(nm_mun_ibge_tran = stri_trans_general(name_muni, "Latin-ASCII"))
-df_eleit_br <- df_eleit_br |> 
+eleit_br <- eleit_br |> 
   mutate(nm_mun_tse_tran = stri_trans_general(nm_municipio_tse, "Latin-ASCII"))
 
-### Cruza dados de população com dados de eleitorado
-### após a transliteração dos nomes dos municípios
-df_pop_eleit_mun <- df_pop_mun |>
+#### Cruza dados de população com dados de eleitorado
+#### após a transliteração dos nomes dos municípios
+pop_eleit_mun <- pop_mun |>
   inner_join(
-    df_eleit_br, 
+    eleit_br, 
     by = join_by(
       abbrev_state == sg_uf,
       nm_mun_ibge_tran == nm_mun_tse_tran))
 df_mun_nao_correspondentes <- compara_datasets(
-  df_pop_mun, df_pop_eleit_mun,
+  pop_mun, pop_eleit_mun,
   abbrev_state, abbrev_state,
   nm_mun_ibge_tran, nm_mun_ibge_tran)
 df_mun_nao_correspondentes[, c("abbrev_state", "nm_mun_ibge_tran")]
 
-### Calcula proporção de eleitores da população
-df_pop_eleit_mun <- df_pop_eleit_mun |>
+#### Calcula proporção de eleitores da população
+pop_eleit_mun <- pop_eleit_mun |>
   mutate(pr_eleit = qt_eleitores_mun / pop)
 
-### Enriquecimento dos dados de municípios (população vs. eleitorado)
-df_pop_eleit_mun <- df_pop_eleit_mun |>
+#### Enriquecimento dos dados de municípios (população vs. eleitorado)
+pop_eleit_mun <- pop_eleit_mun |>
   mutate(tp_porte_mun = case_when(
     pop <= 20000 ~ "Pequeno Porte I",
     pop >= 20001 & pop <= 50000 ~ "Pequeno Porte II",
@@ -184,11 +185,11 @@ df_pop_eleit_mun <- df_pop_eleit_mun |>
                                     .fun = "length"))
 
 ##
-## Análise exploratória dos dados
+## 3.2. Análise exploratória dos dados
 ##
 
 ### Resumo dos dados
-summary(df_pop_eleit_mun$pr_eleit)
+summary(pop_eleit_mun$pr_eleit)
 
 ### Configura tabelas
 set_flextable_defaults(
@@ -199,7 +200,7 @@ set_flextable_defaults(
 ### por porte do município (tabela 1)
 
 #### Constrói tabela 1
-tab_1 <- df_pop_eleit_mun |>
+tab_1 <- pop_eleit_mun |>
   group_by(tp_porte_mun) |>
   summarise(n_mun = as.numeric(n_distinct(code_muni)))
 total_mun <- sum(tab_1$n_mun)
@@ -238,11 +239,12 @@ tab_1
 #### Exporta tabela 1 para formato PNG
 tf <- tempfile(fileext = ".png")
 save_as_image(x = tab_1, path = tf)
+file.copy(from = tf, to = "output/tab_1.png")
 init_flextable_defaults()
 
 ### Visualização da distribuição da proporção de eleitores
 ### em relação ao número de habitantes
-fig_1 <- ggplot(df_pop_eleit_mun,
+fig_1 <- ggplot(pop_eleit_mun,
             aes(x = tp_porte_mun, y = pr_eleit, fill = tp_porte_mun)) +
   geom_violin() +
   labs(
@@ -257,12 +259,13 @@ fig_1 <- ggplot(df_pop_eleit_mun,
         panel.grid.major.y = element_line(colour = 'gray'),
         panel.grid.minor.y = element_line(colour = 'lightgray'))
 fig_1
+ggsave("output/fig_1.png", width = 20, height = 20, units = "cm")
 
 ### Constrói tabela com estatísticas descritivas da proporção de eleitores por 
 ### porte do município
 
 #### Constrói tabela
-tab_2 <- df_pop_eleit_mun |>
+tab_2 <- pop_eleit_mun |>
   group_by(tp_porte_mun) |>
   summarise(
     n_prop_acima_de_80 = n_distinct(code_muni[pr_eleit > 0.8]),
@@ -282,8 +285,14 @@ tab_2 <- set_table_properties(tab_2, layout = "autofit")
 #### Visualiza tabela 2
 tab_2
 
+#### Exporta tabela 1 para formato PNG
+tf <- tempfile(fileext = ".png")
+save_as_image(x = tab_2, path = tf)
+file.copy(from = tf, to = "output/tab_2.png")
+init_flextable_defaults()
+
 ##
-## Análise confirmatória
+## 3.3. Análise confirmatória
 ##
 
 ###
@@ -303,7 +312,7 @@ tab_2
 ### (*) Para entender mais sobre ANOVA e seus tipos específicos, consultar:
 ### https://nathanieldphillips-yarrr.share.connect.posit.cloud/anova.html
 ###
-porte_municipio_modelo <- lm(pr_eleit ~ tp_porte_mun, data = df_pop_eleit_mun) 
+porte_municipio_modelo <- lm(pr_eleit ~ tp_porte_mun, data = pop_eleit_mun) 
 porte_municipio_anova <- car::Anova(porte_municipio_modelo, type = 2)
 report(porte_municipio_anova)
 
@@ -353,6 +362,7 @@ plot(porte_municipio_emms, comparisons = TRUE,
      las=1, cex.axis = 0.7,
      xlab = "Média marginal estimada",
      ylab = "Porte do município")
+ggsave("output/fig_2.png", width = 20, height = 20, units = "cm")
 
 ### Podemos ver que as setas associadas às médias marginais estimadas
 ### dos grupos Grande Porte e Médio Porte possuem uma sobreposição. Isso não 
@@ -364,6 +374,7 @@ plot(porte_municipio_emms, comparisons = TRUE,
 emmeans::pwpp(porte_municipio_emms,
               xlab = "Valor-p ajustado pelo método de Tukey",
               ylab = "Porte do município")
+ggsave("output/fig_3.png", width = 20, height = 20, units = "cm")
 
 #### Curiosidade: o cálculo do contraste é feito simplesmente fazendo a
 #### a diferença entre as médias marginais estimadas. 
