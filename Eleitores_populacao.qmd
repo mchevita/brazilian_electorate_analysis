@@ -2,6 +2,8 @@
 title: "Proporção de eleitores por habitantes nos municípios do Brasil"
 author: "Marcus Chevitarese"
 format: html
+filters: 
+- flextable-qmd
 ---
 
 # 1. Preparação do ambiente
@@ -31,6 +33,7 @@ library(dplyr)
 library(stringi)
 library(ggplot2)
 library(flextable)
+library(officer)
 library(gdtools)
 library(car)
 library(report)
@@ -69,11 +72,21 @@ dplyr::glimpse(pop_mun)
 ### georreferenciado do pacote {geobr}
 
 ```{r}
-geo_mun <- geobr::read_municipality(
-  year = 2010,
-  showProgress = FALSE
+tryCatch(                
+  geo_mun <- geobr::read_municipality(
+    year = 2010,
+    simplified = TRUE,
+    showProgress = FALSE
+  ),
+  error = function(e){          
+  if (is.null(geo_mun)) {
+    cat("Dados complementares de municípios não carregados.")
+    }
+  },
+  finally = {             
+    if (!is.null(geo_mun)) { dplyr::glimpse(geo_mun) }
+  }
 )
-dplyr::glimpse(geo_mun)
 ```
 
 ### Cruza dados dos dois datasets para obter o nome do município
@@ -264,6 +277,7 @@ set_flextable_defaults(
 
 ```{r}
 #| echo: false
+#| warning: false
 tab_1 <- pop_eleit_mun |>
   group_by(tp_porte_mun) |>
   summarise(n_mun = as.numeric(n_distinct(code_muni)))
@@ -304,13 +318,13 @@ tab_1 <- set_table_properties(tab_1, layout = "autofit")
 tab_1
 ```
 
-#### Exporta tabela 1 para formato PNG
+#### Exporta tabela 1 para formato RTF
 
 ```{r}
 #| echo: false
-tf <- tempfile(fileext = ".png")
-save_as_image(x = tab_1, path = tf)
-file.copy(from = tf, to = "output/tab_1.png")
+tf <- tempfile(fileext = ".rtf")
+save_as_rtf(x = tab_1, path = tf)
+file.copy(from = tf, to = "output/tab_1.rtf")
 init_flextable_defaults()
 ```
 
@@ -372,7 +386,6 @@ tab_2 <- set_header_labels(
   n_prop_acima_de_100 = "Acima de 100% de proporção")
 tab_2 <- delete_rows(tab_2, i = 1, part = "header")
 tab_2 <- delete_rows(tab_2, part = "footer")
-tab_2 <- set_table_properties(tab_2, layout = "autofit")
 ```
 
 #### Visualiza tabela 2
@@ -381,14 +394,17 @@ tab_2 <- set_table_properties(tab_2, layout = "autofit")
 tab_2
 ```
 
-#### Exporta tabela 2 para formato PNG
+#### Exporta tabela 2 para formato RTF
+
+Caso a tabela vier com problemas de formação, geralmenta basta aumentar a 
+largura das colunas manualmente.
 
 ```{r}
 #| echo: false
-tf <- tempfile(fileext = ".png")
-save_as_image(x = tab_2, path = tf)
-file.copy(from = tf, to = "output/tab_2.png")
-init_flextable_defaults()
+
+tab_2 <- width(tab_2, width = 2.5, unit = "cm")
+tf <- "output/tab_2.rtf"
+save_as_rtf(x = tab_2, path = tf)
 ```
 
 ## 3.3. Análise confirmatória
