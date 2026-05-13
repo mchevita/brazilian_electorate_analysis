@@ -3,6 +3,7 @@ title: "Proporção de eleitores por habitantes nos municípios do Brasil"
 author: "Marcus Chevitarese"
 format: 
   html:
+    toc: true
     code-fold: true
     code-summary: "Mostrar o código"
 ---
@@ -17,7 +18,11 @@ format:
 rm(list=ls())
 ```
 
+::: {.border}
+
 Objetos removidos da memória.
+
+:::
 
 ## 1.2. Desabilita notação científica para valores numéricos
 
@@ -27,7 +32,11 @@ Objetos removidos da memória.
 options(scipen=999)
 ```
 
+::: {.border}
+
 Notação científica desabilitada.
+
+:::
 
 ## 1.3. Carrega bibliotecas necessárias
 
@@ -48,7 +57,11 @@ library(report)
 library(emmeans)
 ```
 
+::: {.border}
+
 Bibliotecas necessárias carregadas.
+
+:::
 
 # 2. Carga e preparação dos dados
 
@@ -61,19 +74,32 @@ Fonte dos dados: IBGE, via pacotes [{censobr}](https://ipeagit.github.io/censobr
 ```{r}
 #| warning: false
 
-pop_br <- censobr::read_population(
-  year = 2010,
-  showProgress = FALSE
+tryCatch(                
+  pop_br <- censobr::read_population(
+    year = 2010,
+    showProgress = FALSE
+  ),
+  error = function(e){          
+  if (is.null(geo_mun)) {
+    cat("Dados de população dos municípios não carregados.")
+    }
+  },
+  finally = {             
+    if (!is.null(pop_br)) { 
+      n_col <- ncol(pop_br)
+      n_lin <- nrow(pop_br)
+      # Descomente a linha abaixo caso queira ver um resumo de todas as variáveis
+      #dplyr::glimpse(geo_mun) 
+    }
+  }
 )
-
-n_col <- ncol(pop_br)
-n_lin <- nrow(pop_br)
-
-# Descomente a linha abaixo caso queira ver um resumo de todas as variáveis
-#dplyr::glimpse(pop_br)
 ```
 
+::: {.border}
+
 Foram carregadas `r n_lin` linhas e `r n_col` colunas.
+
+:::
 
 ### Gera um dataset com a população agrupada por sigla da UF e código do município
 
@@ -93,7 +119,11 @@ n_lin <- nrow(pop_mun)
 #dplyr::glimpse(pop_mun)
 ```
 
+::: {.border}
+
 Foram carregadas `r n_lin` linhas e `r n_col` colunas.
+
+:::
 
 ### Gera um dataset com o nome dos municípios a partir do arquivo georreferenciado do pacote {geobr}
 
@@ -146,7 +176,11 @@ n_lin <- nrow(pop_mun)
 #dplyr::glimpse(pop_mun)
 ```
 
+::: {.border}
+
 Foram carregadas `r n_lin` linhas e `r n_col` colunas.
+
+:::
 
 ## 2.2. Dados do eleitorado
 
@@ -158,18 +192,33 @@ Fonte dos dados: portal do TSE.
 #| warning: false
 
 url_eleitorado_2010 <- "https://cdn.tse.jus.br/estatistica/sead/odsele/perfil_eleitorado/perfil_eleitorado_2010.zip"
-downloader::download(url_eleitorado_2010, "arq_eleitorado_2010.zip", mode = "wb")
-unzip("arq_eleitorado_2010.zip")
-eleit_br_inicial <- read.csv(
-  "perfil_eleitorado_2010.csv",
-  fileEncoding = "ISO-8859-1",
-  sep = ";")
 
-n_col <- ncol(eleit_br_inicial)
-n_lin <- nrow(eleit_br_inicial)
+tryCatch(                
+  downloader::download(url_eleitorado_2010, "arq_eleitorado_2010.zip", mode = "wb"),
+  error = function(e){          
+    cat("Dados de eleitorado por município não carregados.")
+  },
+  finally = {             
+    unzip("arq_eleitorado_2010.zip")
+    eleit_br_inicial <- read.csv(
+      "perfil_eleitorado_2010.csv",
+      fileEncoding = "ISO-8859-1",
+      sep = ";")
+    if (!is.null(eleit_br_inicial)) { 
+      n_col <- ncol(eleit_br_inicial)
+      n_lin <- nrow(eleit_br_inicial)
+      # Descomente a linha abaixo caso queira ver um resumo de todas as variáveis
+      #dplyr::glimpse(geo_mun) 
+    }
+  }
+)
 ```
 
+::: {.border}
+
 Foram carregadas `r n_lin` linhas e `r n_col` colunas.
+
+:::
 
 ### Agrupa dados "brutos" por município e normaliza nomes das variáveis
 
@@ -193,7 +242,11 @@ n_lin <- nrow(eleit_br)
 #dplyr::glimpse(eleit_br)
 ```
 
+::: {.border}
+
 Foram carregadas `r n_lin` linhas e `r n_col` colunas.
+
+:::
 
 # 3. Análise dos dados
 
@@ -208,7 +261,16 @@ Foram carregadas `r n_lin` linhas e `r n_col` colunas.
 
 pop_mun <- pop_mun |>
   mutate(name_muni = toupper(name_muni))
+
+n_col <- ncol(pop_mun)
+n_lin <- nrow(pop_mun)
 ```
+
+::: {.border}
+
+Foram convertidas `r n_lin` linhas e `r n_col` colunas.
+
+:::
 
 #### Cruza dados de população com dados de municípios
 
@@ -226,7 +288,11 @@ n_col <- ncol(pop_eleit_mun)
 n_lin <- nrow(pop_eleit_mun)
 ```
 
+::: {.border}
+
 Foram cruzadas `r n_lin` linhas e `r n_col` colunas.
+
+:::
 
 ### Verificação de correspondência
 
@@ -266,7 +332,11 @@ df_mun_nao_correspondentes[, c("abbrev_state", "name_muni")]
 n_mun_nao_correspondentes <- nrow(df_mun_nao_correspondentes)
 ```
 
+::: {.border}
+
 Há `r n_mun_nao_correspondentes` municípios na base do IBGE sem correspondência com a base do TSE.
+
+:::
 
 ### Faz a transliteração dos nomes dos municípios para o padrão Latin-ASCII
 
@@ -300,7 +370,11 @@ df_mun_nao_correspondentes[, c("abbrev_state", "nm_mun_ibge_tran")]
 n_mun_nao_correspondentes <- nrow(df_mun_nao_correspondentes)
 ```
 
-Após a transliteração, agora há `r n_mun_nao_correspondentes` municípios na base do IBGE sem correspondência com a base do TSE.
+::: {.border}
+
+Após a transliteração, restam `r n_mun_nao_correspondentes` municípios na base do IBGE sem correspondência com a base do TSE.
+
+:::
 
 ### Calcula proporção de eleitores da população
 
