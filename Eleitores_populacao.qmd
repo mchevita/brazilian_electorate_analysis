@@ -45,8 +45,10 @@ Notação científica desabilitada.
 
 library(censobr)
 library(geobr)
-library(tidyverse)
+#library(tidyverse)
+library(tibble)
 library(dplyr)
+library(forcats)
 library(stringi)
 library(ggplot2)
 library(flextable)
@@ -152,7 +154,11 @@ tryCatch(
 )
 ```
 
+::: {.border}
+
 Foram carregadas `r n_lin` linhas e `r n_col` colunas.
+
+:::
 
 ### Cruza dados dos dois datasets para obter o nome do município
 
@@ -312,8 +318,6 @@ compara_datasets <- function(df_pop, df_eleit,
       anti_join(df_eleit, 
                 by = join_by({{uf_pop}} == {{uf_eleit}},
                              {{mun_pop}} == {{mun_eleit}}))
-    cat(sprintf("Há %d municípios sem correspondência.", 
-                nrow(df_mun_nao_correspondentes)))
   }
   return(df_mun_nao_correspondentes)
 }
@@ -321,14 +325,14 @@ compara_datasets <- function(df_pop, df_eleit,
 
 #### Verifica se todos os municípios do dataset de população tem correspondência no dataset de eleitores
 
-```{r}
+```{r paged.print = FALSE}
 #| warning: false
 
 df_mun_nao_correspondentes <- compara_datasets(
   pop_mun, pop_eleit_mun,
   abbrev_state, abbrev_state,
   name_muni, name_muni)
-df_mun_nao_correspondentes[, c("abbrev_state", "name_muni")]
+as_tibble(df_mun_nao_correspondentes[, c("abbrev_state", "name_muni")])
 n_mun_nao_correspondentes <- nrow(df_mun_nao_correspondentes)
 ```
 
@@ -353,7 +357,7 @@ eleit_br <- eleit_br |>
 
 #### Cruza dados de população com dados de eleitorado após a transliteração dos nomes dos municípios.
 
-```{r}
+```{r paged.print = FALSE}
 #| warning: false
 
 pop_eleit_mun <- pop_mun |>
@@ -366,7 +370,7 @@ df_mun_nao_correspondentes <- compara_datasets(
   pop_mun, pop_eleit_mun,
   abbrev_state, abbrev_state,
   nm_mun_ibge_tran, nm_mun_ibge_tran)
-df_mun_nao_correspondentes[, c("abbrev_state", "nm_mun_ibge_tran")]
+as_tibble(df_mun_nao_correspondentes[, c("abbrev_state", "nm_mun_ibge_tran")])
 n_mun_nao_correspondentes <- nrow(df_mun_nao_correspondentes)
 ```
 
