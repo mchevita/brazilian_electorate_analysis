@@ -6,3 +6,4 @@
 # Ignore all databases
 *.zip
 *.csv
+.positai
